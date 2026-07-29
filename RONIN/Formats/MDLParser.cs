@@ -1,8 +1,10 @@
-﻿using System;
+﻿using SharpDX.Text;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Security.Cryptography.Pkcs;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,8 +15,11 @@ namespace RONIN.Formats
         public Vector3[] Positions;
         public Vector2[] UVs;
         public Vector3[] Normals;
-        public Vector4[] Tangents;
+        public Vector3[] Tangents;
+        public Vector3[] BiTangents;
         public ushort[] Indices;
+
+        public string MaterialName;
     }
 
     public struct MDLBatch(BinaryReader reader)
@@ -43,7 +48,9 @@ namespace RONIN.Formats
             uint lodDataOffset = reader.ReadUInt32();
             uint lodNameOffset = reader.ReadUInt32();
 
-            reader.BaseStream.Seek(60, 0);
+            uint materialCount = reader.ReadUInt32();
+            uint materialNamesOffset = reader.ReadUInt32();
+
             uint meshNameCount = reader.ReadUInt32();
             uint meshNameOffset = reader.ReadUInt32();
             uint batchCount = reader.ReadUInt32();
@@ -83,7 +90,8 @@ namespace RONIN.Formats
                 coreBuffers[x].Positions = new Vector3[vtxPoolSizes[x]];
                 coreBuffers[x].UVs = new Vector2[vtxPoolSizes[x]];
                 coreBuffers[x].Normals = new Vector3[vtxPoolSizes[x]];
-                coreBuffers[x].Tangents = new Vector4[vtxPoolSizes[x]];
+                coreBuffers[x].Tangents = new Vector3[vtxPoolSizes[x]];
+                coreBuffers[x].BiTangents = new Vector3[vtxPoolSizes[x]];
             }
 
 
@@ -96,9 +104,18 @@ namespace RONIN.Formats
                     reader.ReadSingle(); // postions have a w param
                     coreBuffers[x].Normals[y] = new Vector3((float)reader.ReadHalf(), (float)reader.ReadHalf(), (float)reader.ReadHalf());
 
+                    byte[] tangents = new byte[4];
+                    tangents[0] = reader.ReadByte();
+                    tangents[1] = reader.ReadByte();
+                    tangents[2] = reader.ReadByte();
+                    tangents[3] = reader.ReadByte(); // always FF
+
+                    coreBuffers[x].Tangents[y] = new Vector3(tangents[0] / 127.0f, tangents[1] / 127.0f, tangents[2] / 127.0f);
+
+                    coreBuffers[x].BiTangents[y] = Vector3.Cross(coreBuffers[x].Normals[y], coreBuffers[x].Tangents[y])*(tangents[3]/127.0f);
 
 
-                    reader.ReadBytes((int)(mainStride-22));
+                    reader.ReadBytes((int)(mainStride-26));
                 }
             }
 
@@ -118,6 +135,29 @@ namespace RONIN.Formats
             {
                 indexBuffer[x] = reader.ReadUInt16();
             }
+
+
+            string[] materialNames = new string[materialCount];
+            for (uint x = 0; x < materialCount; x++)
+            {
+                reader.BaseStream.Seek(materialNamesOffset+x*4, 0);
+                uint offset = reader.ReadUInt32();
+                reader.BaseStream.Seek(offset, 0);
+
+                using var materialNameBytes = new MemoryStream();
+                byte b;
+                while ((b = reader.ReadByte()) != 0)
+                {
+                    materialNameBytes.WriteByte(b);
+                }
+
+                materialNames[x] = System.Text.Encoding.UTF8.GetString(materialNameBytes.ToArray());
+
+            }
+            
+
+
+
 
             reader.BaseStream.Seek(batchOffset, 0);
             MDLBatch[] batches = new MDLBatch[batchCount];
@@ -142,12 +182,14 @@ namespace RONIN.Formats
                 var localPositions = new Vector3[localCount];
                 var localUVs = new Vector2[localCount];
                 var localNormals = new Vector3[localCount];
-                var localTangents = new Vector4[localCount];
+                var localTangents = new Vector3[localCount];
+                var localBiTangents = new Vector3[localCount];
 
                 Array.Copy(source.Positions, minIndex, localPositions, 0, localCount);
                 Array.Copy(source.UVs, minIndex, localUVs, 0, localCount);
                 Array.Copy(source.Normals, minIndex, localNormals, 0, localCount);
                 Array.Copy(source.Tangents, minIndex, localTangents, 0, localCount);
+                Array.Copy(source.BiTangents, minIndex, localBiTangents, 0, localCount);
 
                 var localIndices = new ushort[batchIndices.Length];
                 for (int i = 0; i < batchIndices.Length; i++)
@@ -159,7 +201,9 @@ namespace RONIN.Formats
                     UVs = localUVs,
                     Normals = localNormals,
                     Tangents = localTangents,
-                    Indices = localIndices
+                    BiTangents = localBiTangents,
+                    Indices = localIndices,
+                    MaterialName = materialNames[batch.materialID]
                 };
             }
 

@@ -69,6 +69,21 @@ namespace YakumoLib.Assets
 
         }
 
+        public static byte[] GetMetadataToc(AssetEntry parent)
+        {
+            if (parent.SubEntries.Count == 0) { return []; }
+
+
+            byte[] parentData = GetParentBlob(parent, parent.SubEntries[0].ContentDirectory);
+            if (parentData == null)
+            {
+                return [];
+            }
+            return parentData.AsSpan(0, (int)parent.SubEntries[0].Offset).ToArray();
+
+        }
+
+
         public static byte[] GetSubBlob(SubAssetEntry sub, AssetEntry parent, string archiveRootDirectory)
         {
             if (sub.SourceArchive is null)

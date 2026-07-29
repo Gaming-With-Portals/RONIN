@@ -177,7 +177,7 @@ namespace YakumoLib.Database
                         $"global='{rawGlobal.ToString()}' local='{rawLocal.ToString()}' " +
                         $"size='{rawSize.ToString()}' compressed='{rawCompressed.ToString()}' " +
                         $"remaining='{subBlob.ToString()}'";
-                    break; // buffer is desynced past this point, stop this row rather than cascade garbage
+                    break; 
                 }
 
                 var subOffset = subGlobalOffset != 0 ? subGlobalOffset : subLocalOffset;

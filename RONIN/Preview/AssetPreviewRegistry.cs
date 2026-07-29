@@ -13,6 +13,15 @@ namespace RONIN.Preview
 
         public void Register(IAssetPreviewProvider provider) => _providers.Add(provider);
 
+        public void UpdateLibrary(AssetLibrary library)
+        {
+            foreach (var provider in _providers)
+            {
+                if (provider is IUsesAssetLibrary aware)
+                    aware.SetLibrary(library);
+            }
+        }
+
         public IAssetPreviewProvider? GetProvider(AssetEntry entry) =>
             _providers.FirstOrDefault(p => p.CanPreview(entry));
     }

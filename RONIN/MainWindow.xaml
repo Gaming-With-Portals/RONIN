@@ -4,6 +4,7 @@
         xmlns:preview="clr-namespace:RONIN.Preview"
         xmlns:local="clr-namespace:RONIN"
         xmlns:hx="http://helix-toolkit.org/wpf/SharpDX"
+        xmlns:mx="clr-namespace:RONIN.Modding"
         Title="RONIN" Height="720" Width="1280">
     <Window.DataContext>
         <local:MainWindowViewModel/>
@@ -30,9 +31,12 @@
                         Camera="{Binding Camera}"
                         ZoomExtentsWhenLoaded="True"
                             Background="#202020">
-
-                        <hx:AmbientLight3D Color="White"/>
+                        
+                        <hx:AmbientLight3D Color="#404040"/>
                         <hx:DirectionalLight3D Direction="-1,-1,-1" Color="White"/>
+                        <hx:DirectionalLight3D Direction="1,-1,1" Color="#888888"/>
+                        <hx:DirectionalLight3D Direction="0,1,0" Color="#444444"/>
+
 
                         <hx:ItemsModel3D ItemsSource="{Binding Models}"/>
 
@@ -82,7 +86,7 @@
                         <MenuItem Header="Replace Selected Package with .JSON" IsEnabled="False"/>
                     </MenuItem>
                     <Separator></Separator>
-                    <MenuItem Header="Generate Patch (.csv/.dat)"/>
+                    <MenuItem Header="Generate Patch (.csv/.dat)" IsEnabled="{Binding CanGeneratePatch}" Command="{Binding GeneratePatch}"/>
                     <MenuItem Header="Patch Generator Settings">
                         <CheckBox IsEnabled="False">Compress Data?</CheckBox>
                     </MenuItem>
@@ -126,7 +130,28 @@
                     <ColumnDefinition Width="200"></ColumnDefinition>
                 </Grid.ColumnDefinitions>
 
-                <Label Grid.Column="0" FontWeight="Bold">Changed Files List</Label>
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"></RowDefinition>
+                        <RowDefinition Height="*"></RowDefinition>
+                    </Grid.RowDefinitions>
+                    <Label Grid.Row="0" FontWeight="Bold">Changed Files List</Label>
+                    <TreeView ItemsSource="{Binding ModifiedAssets}" Grid.Row="1">
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate DataType="{x:Type mx:ModifiedAssetEntry}"
+                                   ItemsSource="{Binding ModifiedEntries}">
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="Bold"/>
+                                <HierarchicalDataTemplate.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type mx:ModifiedSubAssetEntry}">
+                                        <TextBlock Text="{Binding FileName}"/>
+                                    </DataTemplate>
+                                </HierarchicalDataTemplate.ItemTemplate>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+
+                </Grid>
+                
                 <Border Grid.Column="1" Background="#111111">
                     <ContentControl Content="{Binding PreviewContent}"/>
                 </Border>
@@ -168,7 +193,15 @@
          VirtualizingPanel.IsVirtualizing="True"
          VirtualizingPanel.VirtualizationMode="Recycling"
          ScrollViewer.CanContentScroll="True"
+        SelectedItem="{Binding SelectedSubEntry, Mode=TwoWay}"
                               Name="SubfileList">
+                            <ListView.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Export" Command="{Binding SubfileViewer_ExportItem}"/>
+                                    <MenuItem Header="Import" Command="{Binding SubfileViewer_ImportItem}"/>
+                                </ContextMenu>
+                            </ListView.ContextMenu>
+
                             <ListView.View>
                                 <GridView>
                                     <GridViewColumn x:Name="SubfileNameColumn" Width="170" Header="Subfile Name" DisplayMemberBinding="{Binding FileName}"/>

@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using RONIN.Browser;
+using RONIN.Modding;
 using RONIN.Preview;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -20,7 +21,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private int _progressTotal = 1;
     [ObservableProperty] private string _activePath = "/";
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasSelectedEntry))] private AssetEntry _selectedEntry = null;
-    [ObservableProperty][NotifyPropertyChangedFor(nameof(HasBackEntry))] private AssetEntry _previousEntry = null;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasBackEntry))] private AssetEntry _previousEntry = null;
 
     private readonly AssetPreviewRegistry _previewRegistry;
 
@@ -29,10 +30,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool HasSelectedEntry => SelectedEntry is not null;
     public bool HasBackEntry => PreviousEntry is not null;
 
+    public bool CanGeneratePatch => true; // for now
+
     public AssetLibrary? Library { get; private set; }
     
     public ObservableCollection<FolderNodeViewModel> RootFolders { get; } = new();
-    public ObservableCollection<AssetEntry> DebugAssets { get; } = new();
+    public ObservableCollection<AssetEntry> DebugAssets { get; } = new(); // TODO: Rename to current preview assets
+    public ObservableCollection<ModifiedAssetEntry> ModifiedAssets { get; } = new();
+
+    private SubAssetEntry _selectedSubEntry;
+    public SubAssetEntry SelectedSubEntry
+    {
+        get => _selectedSubEntry;
+        set
+        {
+            _selectedSubEntry = value;
+            OnPropertyChanged();
+        }
+    }
+
 
     public MainWindowViewModel()
     {
@@ -76,6 +92,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             // Run the heavy work on a background thread — never block the UI thread
             Library = await Task.Run(() =>
                 AssetLibrary.Load(Path.GetDirectoryName(dialog.FileName), progress));
+
+            _previewRegistry.UpdateLibrary(Library);
 
             var root = await Task.Run(() => FolderNode.BuildTree(Library.All));
 
@@ -127,6 +145,43 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     }
 
+    public void AddModfiedSubfile(ModifiedSubAssetEntry modifiedData, AssetEntry parent)
+    {
+        ModifiedAssetEntry modTarget = null;
+
+        foreach (ModifiedAssetEntry entry in ModifiedAssets)
+        {
+            if (entry.Parent == parent)
+            {
+                modTarget = entry;
+                break;
+            }
+        }
+
+        if (modTarget == null)
+        {
+            modTarget = new ModifiedAssetEntry
+            {
+                Parent = parent
+            };
+            ModifiedAssets.Add(modTarget);
+        }
+
+        for (int i = 0;  i < modTarget.ModifiedEntries.Count; i++ ) {
+            if (modTarget.ModifiedEntries[i].FileName == modifiedData.FileName)
+            {
+                modTarget.ModifiedEntries[i] = modifiedData;
+                return; // Done
+            }
+        }
+
+        // Otherwise, add a new entry
+        modTarget.ModifiedEntries.Add(modifiedData);
+    }
+
+
+
+
     public void SelectFile(AssetEntry entry)
     {
         PreviousEntry = null;
@@ -168,5 +223,115 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
 
         }
+    }
+
+    private RelayCommand subfileViewer_ExportItem;
+    public ICommand SubfileViewer_ExportItem => subfileViewer_ExportItem ??= new RelayCommand(PerformSubfileViewer_ExportItem);
+
+    private void PerformSubfileViewer_ExportItem()
+    {
+        if (SelectedEntry == null || SelectedSubEntry == null)
+        {
+            StatusText = "No file is selected!";
+        }
+        else
+        {
+            SaveFileDialog dialog = new()
+            {
+                Title = "Select file to export too",
+                FileName = SelectedSubEntry.FileName
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                byte[] data = AssetExtractor.GetSubBlob(SelectedSubEntry, SelectedEntry, SelectedSubEntry.ContentDirectory);
+
+                var f = File.OpenWrite(dialog.FileName);
+                f.Write(data);
+                f.Close();
+            }
+
+
+            
+
+
+
+        }
+    }
+
+    private RelayCommand subfileViewer_ImportItem;
+    public ICommand SubfileViewer_ImportItem => subfileViewer_ImportItem ??= new RelayCommand(PerformSubfileViewer_ImportItem);
+
+    private void PerformSubfileViewer_ImportItem()
+    {
+        if (SelectedEntry == null || SelectedSubEntry == null)
+        {
+            StatusText = "No file is selected!";
+        }
+        else
+        {
+            OpenFileDialog dialog = new()
+            {
+                Title = "Select a file to import",
+                FileName = SelectedSubEntry.FileName
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                byte[] data = File.ReadAllBytes(dialog.FileName);
+                if (data == null)
+                {
+                    StatusText = "Error reading file data.";
+                    return;
+                }
+
+                ModifiedSubAssetEntry modSub = new()
+                {
+                    FileName = SelectedSubEntry.FileName,
+                    ModifiedData = data,
+                };
+
+                AddModfiedSubfile(modSub, SelectedEntry);
+
+
+
+
+
+                /*byte[] data = AssetExtractor.GetSubBlob(SelectedSubEntry, SelectedEntry, SelectedSubEntry.ContentDirectory);
+
+                var f = File.OpenWrite(dialog.FileName);
+                f.Write(data);
+                f.Close();*/
+            }
+
+
+
+
+
+
+        }
+    }
+
+    private RelayCommand generatePatch;
+    public ICommand GeneratePatch => generatePatch ??= new RelayCommand(PerformGeneratePatch);
+
+    private void PerformGeneratePatch()
+    {
+        SaveFileDialog dialog = new()
+        {
+            Title = "Select a patch to export too",
+            FileName = "@patch_image2.csv",
+            Filter= "CSV files (*.csv)|*.csv|All files (*.*)|*.*"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            RONIN.Modding.PatchGenerator.GeneratePatch(dialog.FileName, ModifiedAssets.ToArray());
+
+
+        }
+
+
+
     }
 }
