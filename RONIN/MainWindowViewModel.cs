@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using RONIN.Browser;
+using RONIN.Exporters;
 using RONIN.Modding;
 using RONIN.Preview;
 using System.Collections.ObjectModel;
@@ -10,6 +11,7 @@ using System.Security.Cryptography.Pkcs;
 using System.Windows.Input;
 using YakumoLib.Assets;
 using YakumoLib.Database;
+using static HelixToolkit.SharpDX.Model.Metadata;
 
 namespace RONIN;
 
@@ -24,6 +26,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasBackEntry))] private AssetEntry _previousEntry = null;
 
     private readonly AssetPreviewRegistry _previewRegistry;
+    private readonly AssetExporterRegistry _exporterRegistry;
+    //private readonly AssetImporterRegistry _importerRegistry;
 
     [ObservableProperty] private object? _previewContent;
 
@@ -59,6 +63,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _previewRegistry.Register(new FontPreviewProvider());
         _previewRegistry.Register(new ModelPreviewProvider());
         _previewRegistry.Register(new AssetTablePreviewProvider());
+
+        _exporterRegistry = new AssetExporterRegistry();
+        _exporterRegistry.Register(new ModelExportProvider());
+
+        //_importerRegistry = new AssetImporterRegistry();
+        
+
     }
 
 
@@ -236,23 +247,48 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         else
         {
-            SaveFileDialog dialog = new()
+            var provider = _exporterRegistry.GetProvider(SelectedEntry);
+            if (provider == null)
             {
-                Title = "Select file to export too",
-                FileName = SelectedSubEntry.FileName
-            };
+                SaveFileDialog dialog = new()
+                {
+                    Title = "Select file to export too",
+                    FileName = SelectedSubEntry.FileName
+                };
 
-            if (dialog.ShowDialog() == true)
+                if (dialog.ShowDialog() == true)
+                {
+                    byte[] data = AssetExtractor.GetSubBlob(SelectedSubEntry, SelectedEntry, SelectedSubEntry.ContentDirectory);
+
+                    var f = File.OpenWrite(dialog.FileName);
+                    f.Write(data);
+                    f.Close();
+                }
+
+            }
+            else
             {
-                byte[] data = AssetExtractor.GetSubBlob(SelectedSubEntry, SelectedEntry, SelectedSubEntry.ContentDirectory);
+                SaveFileDialog dialog = new()
+                {
+                    Title = "Select file to export too",
+                    FileName = System.IO.Path.GetFileNameWithoutExtension(SelectedSubEntry.FileName) + provider.GetExportExtension()
+                };
 
-                var f = File.OpenWrite(dialog.FileName);
-                f.Write(data);
-                f.Close();
+                if (dialog.ShowDialog() == true)
+                {
+                    bool result = provider.Export(SelectedEntry, dialog.FileName);
+                    if (!result)
+                    {
+                        StatusText = "Couldn't export!";
+                    }
+
+                }
+
             }
 
 
-            
+
+
 
 
 

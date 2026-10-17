@@ -11,6 +11,6 @@ namespace RONIN.Exporters
     {
         string GetExportExtension();
         bool CanExport(AssetEntry entry);
-        bool Export(AssetEntry entry);
+        bool Export(AssetEntry entry, string targetPath);
     }
 }
