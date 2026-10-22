@@ -73,6 +73,7 @@
             <Menu>
                 <MenuItem Header="File">
                     <MenuItem Header="Load AssetDatabase" Command="{Binding LoadAssetDatabaseCommand}"></MenuItem>
+                    <!-- <CheckBox IsChecked="{Binding DoImportSound}">Import Sound Data</CheckBox> -->
                 </MenuItem>
                 <MenuItem Header="Modding Tools">
                     <MenuItem Header="Export Selected Subfile"/>
@@ -240,12 +241,38 @@
                 <Grid Grid.Column="1">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"></RowDefinition>
+                        <RowDefinition Height="Auto"></RowDefinition>
                         <RowDefinition Height="*"></RowDefinition>
                     </Grid.RowDefinitions>
 
-                    <Label Content="{Binding ActivePath}" FontStyle="Italic"></Label>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="220"/>
+                        </Grid.ColumnDefinitions>
 
-                    <ListView Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{Binding DebugAssets}"
+                        <Label Grid.Column="0" Content="{Binding ActivePath}" FontStyle="Italic"/>
+
+                        <TextBox Grid.Column="1" Margin="2"
+                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                 ToolTip="Search packages by name or UUID"/>
+                    </Grid>
+
+                    <WrapPanel Grid.Row="1">
+                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding ShowTextures}">Textures</CheckBox>
+                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding ShowMesh}">Mesh</CheckBox>
+                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding ShowVfx}">VFX</CheckBox>
+                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding ShowAudio}">Audio</CheckBox>
+                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding ShowData}">Data</CheckBox>
+
+                        <Rectangle Width="1" Fill="Gray" Margin="0,0,12,0"  VerticalAlignment="Stretch"/>
+
+                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding HideEmptyContainers}">Hide Pruned Assets</CheckBox>
+
+                    </WrapPanel>
+                    
+
+                    <ListView Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{Binding AssetsView}"
          VirtualizingPanel.IsVirtualizing="True"
          VirtualizingPanel.VirtualizationMode="Recycling"
          ScrollViewer.CanContentScroll="True"

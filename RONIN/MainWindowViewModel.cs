@@ -8,10 +8,13 @@ using RONIN.Preview;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Security.Cryptography.Pkcs;
+using System.Windows;
 using System.Windows.Input;
 using YakumoLib.Assets;
 using YakumoLib.Database;
 using static HelixToolkit.SharpDX.Model.Metadata;
+using System.ComponentModel;
+using System.Windows.Data;
 
 namespace RONIN;
 
@@ -22,11 +25,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private int _progressCurrent;
     [ObservableProperty] private int _progressTotal = 1;
     [ObservableProperty] private string _activePath = "/";
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private bool _showTextures = true;
+    [ObservableProperty] private bool _showMesh = true;
+    [ObservableProperty] private bool _showVfx = true;
+    [ObservableProperty] private bool _showAudio = true;
+    [ObservableProperty] private bool _showData = true;
+    [ObservableProperty] private bool _hideEmptyContainers = true;
+
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasSelectedEntry))] private AssetEntry _selectedEntry = null;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasBackEntry))] private AssetEntry _previousEntry = null;
 
+    public bool DoImportSound { get; set; }
+
     private readonly AssetPreviewRegistry _previewRegistry;
     private readonly AssetExporterRegistry _exporterRegistry;
+
+    [ObservableProperty] private ICollectionView? _assetsView;
     //private readonly AssetImporterRegistry _importerRegistry;
 
     [ObservableProperty] private object? _previewContent;
@@ -68,11 +83,56 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _exporterRegistry.Register(new ModelExportProvider());
 
         //_importerRegistry = new AssetImporterRegistry();
-        
-
     }
 
+    private void SetAssets(IEnumerable<AssetEntry> assets)
+    {
+        var list = new List<AssetEntry>(assets);
+        var view = CollectionViewSource.GetDefaultView(list);
+        view.Filter = FilterAsset;
+        AssetsView = view;
+    }
 
+    private bool IsTypeVisible(AssetEntry asset) => asset.Type switch
+    {
+        AssetType.Texture or AssetType.AtlasTexture or AssetType.AnimationTexture or AssetType.Texture3D => ShowTextures,
+        AssetType.SkeletalMesh or AssetType.StaticMesh or AssetType.StaticCollision or AssetType.MergeMesh or AssetType.BlendShapeMesh => ShowMesh,
+        AssetType.VFXAttachData or AssetType.VFXATTRData or AssetType.VFXGroupData or AssetType.VFXPrimitiveData => ShowVfx,   // or whatever maps to VFX
+        AssetType.SoundBank => ShowAudio,
+        _ => ShowData,  // everything else counts as Data
+    };
+
+    private bool FilterAsset(object obj)
+    {
+        if (obj is not AssetEntry asset)
+            return false;
+
+        if (!IsTypeVisible(asset))
+            return false;
+
+        if (HideEmptyContainers && asset.Size == null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(SearchText))
+            return true;
+
+        return Contains(asset.FileName)
+            || Contains(asset.StringAssetID)
+            || Contains(asset.Type.ToString());
+
+        bool Contains(string? s) =>
+            s?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    partial void OnSearchTextChanged(string value) => _assetsView.Refresh();
+    partial void OnShowTexturesChanged(bool value) => AssetsView?.Refresh();
+    partial void OnShowMeshChanged(bool value) => AssetsView?.Refresh();
+    partial void OnShowVfxChanged(bool value) => AssetsView?.Refresh();
+    partial void OnShowAudioChanged(bool value) => AssetsView?.Refresh();
+    partial void OnShowDataChanged(bool value) => AssetsView?.Refresh();
+    partial void OnHideEmptyContainersChanged(bool value) => AssetsView?.Refresh();
 
 
     [RelayCommand]
@@ -108,17 +168,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             var root = await Task.Run(() => FolderNode.BuildTree(Library.All));
 
+            
             RootFolders.Clear();
             RootFolders.Add(new FolderNodeViewModel(root));
 
+            if (DoImportSound)
+            {
+                
+            }
 
             StatusText = $"Done! Loaded {Library.Count} assets.";
             ProgressTotal = 1;
             ProgressCurrent = 1;
 
             DebugAssets.Clear();
-            foreach (var asset in Library.All)
-                DebugAssets.Add(asset);
+            SetAssets(Library.All);
+            //foreach (var asset in Library.All)
+             //   DebugAssets.Add(asset);
 
         }
         catch (Exception ex)

@@ -20,6 +20,19 @@ using YakumoLib.Assets;
 
 namespace RONIN.Preview
 {
+    public sealed record MaterialData(byte[] DiffuseDds, byte[]? NormalDds);
+
+    public sealed class MeshData
+    {
+        public required Vector3[] Positions { get; init; }
+        public required Vector3[] Normals { get; init; }
+        public required Vector3[] Tangents { get; init; }
+        public required Vector3[] BiTangents { get; init; }
+        public required Vector2[] UVs { get; init; }
+        public required uint[] Indices { get; init; }
+        public MaterialData? Material { get; init; }
+    }
+
     public sealed class ModelPreviewProvider : IAssetPreviewProvider, IUsesAssetLibrary
     {
         private AssetLibrary? _library;
